@@ -1,5 +1,5 @@
 {
-  "name": "angular-loading-bar",
+  "name": "infowrap-angular-loading-bar",
   "version": "0.0.4",
   "main": ["src/loading-bar.js", "src/loading-bar.css"],
   "ignore": [

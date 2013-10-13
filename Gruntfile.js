@@ -66,7 +66,8 @@ module.exports = function(grunt) {
   grunt.loadNpmTasks('grunt-contrib-cssmin');
   grunt.loadNpmTasks('grunt-karma');
 
-  grunt.registerTask('default', ['jshint', 'karma:unit', 'uglify', 'cssmin']);
+  //grunt.registerTask('default', ['jshint', 'karma:unit', 'uglify', 'cssmin']);
+  grunt.registerTask('default', ['jshint', 'uglify', 'cssmin']);
   grunt.registerTask('test', ['karma:watch']);
   grunt.registerTask('build', ['default']);
 
