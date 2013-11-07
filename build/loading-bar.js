@@ -1,3 +1,9 @@
+/*! 
+ * angular-loading-bar v0.0.5
+ * https://chieffancypants.github.io/angular-loading-bar
+ * Copyright (c) 2013 Wes Cruver
+ * License: MIT
+ */
 
 /*
  * angular-loading-bar
@@ -19,11 +25,10 @@
  *
  * Registers itself as an Angular interceptor and listens for XHR requests.
  */
-angular.module('chieffancypants.loadingBar.config', []).value("chieffancypants.loadingBar.config", {});
-angular.module('chieffancypants.loadingBar', ["chieffancypants.loadingBar.config"])
+angular.module('chieffancypants.loadingBar', [])
   .config(['$httpProvider', function ($httpProvider) {
 
-    var interceptor = ['chieffancypants.loadingBar.config', '$q', '$cacheFactory', 'cfpLoadingBar', function (config, $q, $cacheFactory, cfpLoadingBar) {
+    var interceptor = ['$q', '$cacheFactory', 'cfpLoadingBar', function ($q, $cacheFactory, cfpLoadingBar) {
 
       /**
        * The total number of requests made
@@ -35,10 +40,6 @@ angular.module('chieffancypants.loadingBar', ["chieffancypants.loadingBar.config
        */
       var reqsCompleted = 0;
 
-      /**
-       * Excluded url parts
-       */
-      var excludeUrlParts = config.excludeUrlParts || [];
 
       /**
        * calls cfpLoadingBar.complete() which removes the
@@ -55,60 +56,36 @@ angular.module('chieffancypants.loadingBar', ["chieffancypants.loadingBar.config
        * @param  {Object}  config the config option from the request
        * @return {Boolean} retrns true if cached, otherwise false
        */
-      // function isCached(config) {
-      //   var cache;
-      //   var defaults = $httpProvider.defaults;
+      function isCached(config) {
+        var cache;
+        var defaults = $httpProvider.defaults;
 
-      //   if (config.method !== 'GET' || config.cache === false) {
-      //     config.cached = false;
-      //     return false;
-      //   }
-
-      //   if (config.cache === true && defaults.cache === undefined) {
-      //     cache = $cacheFactory.get('$http');
-      //   } else if (defaults.cache !== undefined) {
-      //     cache = defaults.cache;
-      //   } else {
-      //     cache = config.cache;
-      //   }
-
-      //   var cached = cache !== undefined ?
-      //     cache.get(config.url) !== undefined : false;
-
-      //   if (config.cached !== undefined && cached !== config.cached) {
-      //     return config.cached;
-      //   }
-      //   config.cached = cached;
-      //   return cached;
-      // }
-
-      /**
-       * Determine if request is for the api
-       */
-      function isConfigUrlApiRequest(config) {
-        if (config && config.url && config.url.indexOf('json') > 1) {
-          return true;
+        if (config.method !== 'GET' || config.cache === false) {
+          config.cached = false;
+          return false;
         }
-        return false;
-      }
 
-      /**
-       * Determine if request url should be excluded
-       */
-      function isNotExcluded(url) {
-        var valid = true;
-        _.forEach(excludeUrlParts, function(excludedPart) {
-          if (url.indexOf(excludedPart) > -1) {
-            valid = false;
-          }
-        });
-        return valid;
+        if (config.cache === true && defaults.cache === undefined) {
+          cache = $cacheFactory.get('$http');
+        } else if (defaults.cache !== undefined) {
+          cache = defaults.cache;
+        } else {
+          cache = config.cache;
+        }
+
+        var cached = cache !== undefined ?
+          cache.get(config.url) !== undefined : false;
+
+        if (config.cached !== undefined && cached !== config.cached) {
+          return config.cached;
+        }
+        config.cached = cached;
+        return cached;
       }
 
       return {
         'request': function(config) {
-          //if (!isCached(config)) {
-          if (isConfigUrlApiRequest(config) && isNotExcluded(config.url)) {
+          if (!isCached(config)) {
             if (reqsTotal === 0) {
               cfpLoadingBar.start();
             }
@@ -118,8 +95,7 @@ angular.module('chieffancypants.loadingBar', ["chieffancypants.loadingBar.config
         },
 
         'response': function(response) {
-          //if (!isCached(response.config)) {
-          if (isConfigUrlApiRequest(response.config) && isNotExcluded(response.config.url)) {
+          if (!isCached(response.config)) {
             reqsCompleted++;
             if (reqsCompleted >= reqsTotal) {
               setComplete();
@@ -131,8 +107,7 @@ angular.module('chieffancypants.loadingBar', ["chieffancypants.loadingBar.config
         },
 
         'responseError': function(rejection) {
-          //if (!isCached(rejection.config)) {
-          if (isConfigUrlApiRequest(rejection.config) && isNotExcluded(rejection.config.url)) {
+          if (!isCached(rejection.config)) {
             reqsCompleted++;
             if (reqsCompleted >= reqsTotal) {
               setComplete();
@@ -165,7 +140,7 @@ angular.module('chieffancypants.loadingBar', ["chieffancypants.loadingBar.config
 
       var $parentSelector = this.parentSelector,
         $parent = $document.find($parentSelector),
-        loadingBarContainer = angular.element('<div id="loading-bar"><div class="bar"></div></div>'),
+        loadingBarContainer = angular.element('<div id="loading-bar"><div class="bar"><div class="peg"></div></div></div>'),
         loadingBar = loadingBarContainer.find('div').eq(0),
         spinner = angular.element('<div id="loading-bar-spinner"><div class="spinner-icon"></div></div>');
 
