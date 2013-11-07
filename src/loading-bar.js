@@ -19,11 +19,10 @@
  *
  * Registers itself as an Angular interceptor and listens for XHR requests.
  */
-angular.module('chieffancypants.loadingBar.config', []).value("chieffancypants.loadingBar.config", {});
-angular.module('chieffancypants.loadingBar', ["chieffancypants.loadingBar.config"])
+angular.module('chieffancypants.loadingBar', [])
   .config(['$httpProvider', function ($httpProvider) {
 
-    var interceptor = ['chieffancypants.loadingBar.config', '$q', '$cacheFactory', 'cfpLoadingBar', function (config, $q, $cacheFactory, cfpLoadingBar) {
+    var interceptor = ['$q', '$cacheFactory', 'cfpLoadingBar', function ($q, $cacheFactory, cfpLoadingBar) {
 
       /**
        * The total number of requests made
@@ -38,7 +37,7 @@ angular.module('chieffancypants.loadingBar', ["chieffancypants.loadingBar.config
       /**
        * Excluded url parts
        */
-      var excludeUrlParts = config.excludeUrlParts || [];
+      var excludeUrlParts = cfpLoadingBar.excludeUrlParts || [];
 
       /**
        * calls cfpLoadingBar.complete() which removes the
@@ -160,6 +159,7 @@ angular.module('chieffancypants.loadingBar', ["chieffancypants.loadingBar.config
     this.includeSpinner = true;
     this.includeBar = true;
     this.parentSelector = 'body';
+    this.excludeUrlParts = [];
 
     this.$get = ['$document', '$timeout', '$animate', '$rootScope', function ($document, $timeout, $animate, $rootScope) {
 
@@ -275,7 +275,8 @@ angular.module('chieffancypants.loadingBar', ["chieffancypants.loadingBar.config
         inc: _inc,
         complete: _complete,
         includeSpinner: this.includeSpinner,
-        parentSelector: this.parentSelector
+        parentSelector: this.parentSelector,
+        excludeUrlParts: this.excludeUrlParts
       };
 
 
