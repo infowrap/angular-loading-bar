@@ -14,9 +14,9 @@ module.exports = function(config) {
 
     // list of files / patterns to load in the browser
     files: [
-      'lib/angular.min.js',
-      'lib/angular-animate.min.js',
-      'lib/angular-mocks.js',
+      '../bower_components/angular-1.3/angular.js',
+      '../bower_components/angular-animate-1.3/angular-animate.js',
+      '../bower_components/angular-mocks-1.3/angular-mocks.js',
       '../src/*.js',
       '*.coffee'
     ],
