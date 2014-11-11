@@ -1,14 +1,13 @@
 /*! 
- * angular-loading-bar v0.0.6
+ * angular-loading-bar v0.6.1
  * https://chieffancypants.github.io/angular-loading-bar
- * Copyright (c) 2013 Wes Cruver
+ * Copyright (c) 2014 Wes Cruver
  * License: MIT
  */
-
 /*
  * angular-loading-bar
  *
- * intercepts XHR requests and creates a loading bar when that shit happens.
+ * intercepts XHR requests and creates a loading bar.
  * Based on the excellent nprogress work by rstacruz (more info in readme)
  *
  * (c) 2013 Wes Cruver
@@ -18,17 +17,22 @@
 
 (function() {
 
-  'use strict';
+'use strict';
+
+// Alias the loading bar for various backwards compatibilities since the project has matured:
+angular.module('angular-loading-bar', ['cfp.loadingBarInterceptor']);
+angular.module('chieffancypants.loadingBar', ['cfp.loadingBarInterceptor']);
+
 
 /**
  * loadingBarInterceptor service
  *
  * Registers itself as an Angular interceptor and listens for XHR requests.
  */
-angular.module('chieffancypants.loadingBar', [])
+angular.module('cfp.loadingBarInterceptor', ['cfp.loadingBar'])
   .config(['$httpProvider', function ($httpProvider) {
 
-    var interceptor = ['$q', '$cacheFactory', 'cfpLoadingBar', function ($q, $cacheFactory, cfpLoadingBar) {
+    var interceptor = ['$q', '$cacheFactory', '$timeout', '$rootScope', 'cfpLoadingBar', function ($q, $cacheFactory, $timeout, $rootScope, cfpLoadingBar) {
 
       /**
        * The total number of requests made
@@ -46,10 +50,21 @@ angular.module('chieffancypants.loadingBar', [])
       var excludeUrlParts = cfpLoadingBar.excludeUrlParts || [];
 
       /**
+       * The amount of time spent fetching before showing the loading bar
+       */
+      var latencyThreshold = cfpLoadingBar.latencyThreshold;
+
+      /**
+       * $timeout handle for latencyThreshold
+       */
+      var startTimeout;
+
+      /**
        * calls cfpLoadingBar.complete() which removes the
        * loading bar from the DOM.
        */
       function setComplete() {
+        $timeout.cancel(startTimeout);
         cfpLoadingBar.complete();
         reqsCompleted = 0;
         reqsTotal = 0;
@@ -62,19 +77,15 @@ angular.module('chieffancypants.loadingBar', [])
        */
       // function isCached(config) {
       //   var cache;
+      //   var defaultCache = $cacheFactory.get('$http');
       //   var defaults = $httpProvider.defaults;
 
-      //   if (config.method !== 'GET' || config.cache === false) {
-      //     config.cached = false;
-      //     return false;
-      //   }
-
-      //   if (config.cache === true && defaults.cache === undefined) {
-      //     cache = $cacheFactory.get('$http');
-      //   } else if (defaults.cache !== undefined) {
-      //     cache = defaults.cache;
-      //   } else {
-      //     cache = config.cache;
+      //   // Choose the proper cache source. Borrowed from angular: $http service
+      //   if ((config.cache || defaults.cache) && config.cache !== false &&
+      //     (config.method === 'GET' || config.method === 'JSONP')) {
+      //       cache = angular.isObject(config.cache) ? config.cache
+      //         : angular.isObject(defaults.cache) ? defaults.cache
+      //         : defaultCache;
       //   }
 
       //   var cached = cache !== undefined ?
@@ -110,22 +121,30 @@ angular.module('chieffancypants.loadingBar', [])
         return valid;
       }
 
+
       return {
         'request': function(config) {
-          //if (!isCached(config)) {
+          // Check to make sure this request hasn't already been cached and that
+          // the requester didn't explicitly ask us to ignore this request:
+          //if (!config.ignoreLoadingBar && !isCached(config)) {
+          //  $rootScope.$broadcast('cfpLoadingBar:loading', {url: config.url});
           if (isConfigUrlApiRequest(config) && isNotExcluded(config.url)) {
             if (reqsTotal === 0) {
-              cfpLoadingBar.start();
+              startTimeout = $timeout(function() {
+                cfpLoadingBar.start();
+              }, latencyThreshold);
             }
             reqsTotal++;
+            cfpLoadingBar.set(reqsCompleted / reqsTotal);
           }
           return config;
         },
 
         'response': function(response) {
-          //if (!isCached(response.config)) {
+          //if (!response.config.ignoreLoadingBar && !isCached(response.config)) {
           if (isConfigUrlApiRequest(response.config) && isNotExcluded(response.config.url)) {
             reqsCompleted++;
+            //$rootScope.$broadcast('cfpLoadingBar:loaded', {url: response.config.url, result: response});
             if (reqsCompleted >= reqsTotal) {
               setComplete();
             } else {
@@ -136,9 +155,10 @@ angular.module('chieffancypants.loadingBar', [])
         },
 
         'responseError': function(rejection) {
-          //if (!isCached(rejection.config)) {
+          //if (!rejection.config.ignoreLoadingBar && !isCached(rejection.config)) {
           if (isConfigUrlApiRequest(rejection.config) && isNotExcluded(rejection.config.url)) {
             reqsCompleted++;
+            //$rootScope.$broadcast('cfpLoadingBar:loaded', {url: rejection.config.url, result: rejection});
             if (reqsCompleted >= reqsTotal) {
               setComplete();
             } else {
@@ -151,29 +171,36 @@ angular.module('chieffancypants.loadingBar', [])
     }];
 
     $httpProvider.interceptors.push(interceptor);
-  }])
+  }]);
 
 
-  /**
-   * Loading Bar
-   *
-   * This service handles actually adding and removing the element from the DOM.
-   * Because this is such a light-weight element, the
-   */
+/**
+ * Loading Bar
+ *
+ * This service handles adding and removing the actual element in the DOM.
+ * Generally, best practices for DOM manipulation is to take place in a
+ * directive, but because the element itself is injected in the DOM only upon
+ * XHR requests, and it's likely needed on every view, the best option is to
+ * use a service.
+ */
+angular.module('cfp.loadingBar', [])
   .provider('cfpLoadingBar', function() {
 
     this.includeSpinner = true;
     this.includeBar = true;
+    this.latencyThreshold = 100;
+    this.startSize = 0.02;
     this.parentSelector = 'body';
+    this.spinnerTemplate = '<div id="loading-bar-spinner"><div class="spinner-icon"></div></div>';
+    this.loadingBarTemplate = '<div id="loading-bar"><div class="bar"><div class="peg"></div></div></div>';
     this.excludeUrlParts = [];
 
-    this.$get = ['$document', '$timeout', '$animate', '$rootScope', function ($document, $timeout, $animate, $rootScope) {
-
+    this.$get = ['$injector', '$document', '$timeout', '$rootScope', function ($injector, $document, $timeout, $rootScope) {
+      var $animate;
       var $parentSelector = this.parentSelector,
-        $parent = $document.find($parentSelector),
-        loadingBarContainer = angular.element('<div id="loading-bar"><div class="bar"></div></div>'),
+        loadingBarContainer = angular.element(this.loadingBarTemplate),
         loadingBar = loadingBarContainer.find('div').eq(0),
-        spinner = angular.element('<div id="loading-bar-spinner"><div class="spinner-icon"></div></div>');
+        spinner = angular.element(this.spinnerTemplate);
 
       var incTimeout,
         completeTimeout,
@@ -182,14 +209,26 @@ angular.module('chieffancypants.loadingBar', [])
 
       var includeSpinner = this.includeSpinner;
       var includeBar = this.includeBar;
+      var startSize = this.startSize;
 
       /**
        * Inserts the loading bar element into the dom, and sets it to 2%
        */
       function _start() {
-        $rootScope.$broadcast('cfpLoadingBar:started');
-        started = true;
+        if (!$animate) {
+          $animate = $injector.get('$animate');
+        }
+
+        var $parent = $document.find($parentSelector).eq(0);
         $timeout.cancel(completeTimeout);
+
+        // do not continually broadcast the started event:
+        if (started) {
+          return;
+        }
+
+        //$rootScope.$broadcast('cfpLoadingBar:started');
+        started = true;
 
         if (includeBar) {
           $animate.enter(loadingBarContainer, $parent);
@@ -198,7 +237,8 @@ angular.module('chieffancypants.loadingBar', [])
         if (includeSpinner) {
           $animate.enter(spinner, $parent);
         }
-        _set(0.02);
+
+        _set(startSize);
       }
 
       /**
@@ -214,9 +254,9 @@ angular.module('chieffancypants.loadingBar', [])
         loadingBar.css('width', pct);
         status = n;
 
-        // increment loadingbar to give the illusion that there is always progress
-        // but make sure to cancel the previous timeouts so we don't have multiple
-        // incs running at the same time.
+        // increment loadingbar to give the illusion that there is always
+        // progress but make sure to cancel the previous timeouts so we don't
+        // have multiple incs running at the same time.
         $timeout.cancel(incTimeout);
         incTimeout = $timeout(function() {
           _inc();
@@ -225,7 +265,7 @@ angular.module('chieffancypants.loadingBar', [])
 
       /**
        * Increments the loading bar by a random amount
-       * but slows down once it approaches 70%
+       * but slows down as it progresses
        */
       function _inc() {
         if (_status() >= 1) {
@@ -262,29 +302,43 @@ angular.module('chieffancypants.loadingBar', [])
         return status;
       }
 
+      function _completeAnimation() {
+        status = 0;
+        started = false;
+      }
+
       function _complete() {
-        $rootScope.$broadcast('cfpLoadingBar:completed');
+        if (!$animate) {
+          $animate = $injector.get('$animate');
+        }
+
+        //$rootScope.$broadcast('cfpLoadingBar:completed');
         _set(1);
+
+        $timeout.cancel(completeTimeout);
+
+        // Attempt to aggregate any start/complete calls within 500ms:
         completeTimeout = $timeout(function() {
-          $animate.leave(loadingBarContainer, function() {
-            status = 0;
-            started = false;
-          });
+          var promise = $animate.leave(loadingBarContainer, _completeAnimation);
+          if (promise && promise.then) {
+            promise.then(_completeAnimation);
+          }
           $animate.leave(spinner);
         }, 500);
       }
 
       return {
-        start: _start,
-        set: _set,
-        status: _status,
-        inc: _inc,
-        complete: _complete,
-        includeSpinner: this.includeSpinner,
-        parentSelector: this.parentSelector,
-        excludeUrlParts: this.excludeUrlParts
+        start            : _start,
+        set              : _set,
+        status           : _status,
+        inc              : _inc,
+        complete         : _complete,
+        includeSpinner   : this.includeSpinner,
+        latencyThreshold : this.latencyThreshold,
+        parentSelector   : this.parentSelector,
+        startSize        : this.startSize,
+        excludeUrlParts  : this.excludeUrlParts
       };
-
 
 
     }];     //
